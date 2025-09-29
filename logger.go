@@ -67,13 +67,14 @@ func buildCores(ctx context.Context, cfg Config, level zapcore.Level) ([]zapcore
 	var otelProvider *otelLogSdk.LoggerProvider
 
 	if cfg.EnableStdout {
-		cores = append(cores, createStdoutCore(cfg.AsJSON, level))
+		stdoutCore := createStdoutCore(cfg.AsJSON, level)
+		cores = append(cores, stdoutCore)
 	}
 
 	if cfg.EnableOTLP {
-		otlpCore, provider, err := createOTLPCore(ctx, cfg)
+		otlpCore, provider, err := createOTLPCore(ctx, cfg, level)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to create OTLP core: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to create OTLP core: %v\n", err)
 		} else {
 			cores = append(cores, otlpCore)
 			otelProvider = provider
@@ -99,12 +100,15 @@ func createStdoutCore(asJSON bool, level zapcore.Level) zapcore.Core {
 	return zapcore.NewCore(encoder, &noSyncWriter{os.Stdout}, level)
 }
 
-func createOTLPCore(ctx context.Context, cfg Config) (*SimpleOTLPCore, *otelLogSdk.LoggerProvider, error) {
+func createOTLPCore(ctx context.Context, cfg Config, level zapcore.Level) (zapcore.Core, *otelLogSdk.LoggerProvider, error) {
 	otlpLogger, provider, processor, err := createOTLPLogger(ctx, cfg.OtlpEndpoint, cfg.ServiceName, cfg.ServiceEnvironment, cfg.OtlpUseTLS)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to create OTLP logger: %w", err)
 	}
-	return NewSimpleOTLPCore(otlpLogger, processor, zap.NewAtomicLevelAt(parseLevelDefault(cfg.Level)), cfg.ShutdownTimeout), provider, nil
+
+	otlpCore := NewSimpleOTLPCore(otlpLogger, processor, level, 500*time.Millisecond)
+
+	return otlpCore, provider, nil
 }
 
 // createOTLPLogger создает OTLP логгер.
