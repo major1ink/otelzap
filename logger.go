@@ -75,6 +75,7 @@ func buildCores(ctx context.Context, cfg Config, level zapcore.Level) ([]zapcore
 		otlpCore, provider, err := createOTLPCore(ctx, cfg, level)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to create OTLP core: %v\n", err)
+			cores = append(cores, zapcore.NewNopCore())
 		} else {
 			cores = append(cores, otlpCore)
 			otelProvider = provider
@@ -84,7 +85,6 @@ func buildCores(ctx context.Context, cfg Config, level zapcore.Level) ([]zapcore
 	if len(cores) == 0 {
 		return nil, nil, fmt.Errorf("no cores configured")
 	}
-
 	return cores, otelProvider, nil
 }
 
